@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS records (
 conn.commit()
 
 
+# ---------------- FORMS ----------------
 class Form(StatesGroup):
     description = State()
     assistant = State()
@@ -42,6 +43,11 @@ class ExportForm(StatesGroup):
     date_to = State()
 
 
+class DeleteForm(StatesGroup):
+    choose_id = State()
+
+
+# ---------------- KEYBOARDS ----------------
 assistant_keyboard = ReplyKeyboardMarkup(
     keyboard=[[KeyboardButton(text="Катерина"), KeyboardButton(text="Авелина")]],
     resize_keyboard=True
@@ -65,6 +71,7 @@ export_assistant_keyboard = ReplyKeyboardMarkup(
 )
 
 
+# ---------------- /start и /help ----------------
 @dp.message(Command("start"))
 async def start(message: types.Message, state: FSMContext):
     await state.set_state(Form.description)
@@ -77,9 +84,12 @@ async def help_command(message: types.Message):
         "📖 Справка:\n\n"
         "/start — добавить запись\n"
         "/export — выгрузка в Excel\n"
+        "/delete — удалить запись по ID\n"
+        "💡 Сначала используй /export, чтобы узнать ID"
     )
 
 
+# ---------------- ADD RECORD ----------------
 @dp.message(Form.description)
 async def get_description(message: types.Message, state: FSMContext):
     await state.update_data(description=message.text)
@@ -92,7 +102,6 @@ async def get_assistant(message: types.Message, state: FSMContext):
     if message.text not in ["Катерина", "Авелина"]:
         await message.answer("Выбери кнопкой 👇")
         return
-
     await state.update_data(assistant=message.text)
     await state.set_state(Form.level)
     await message.answer("Уровень греха?", reply_markup=level_keyboard)
@@ -100,28 +109,22 @@ async def get_assistant(message: types.Message, state: FSMContext):
 
 @dp.message(Form.level)
 async def get_level(message: types.Message, state: FSMContext):
-    levels = {"1 — мелкий": 1, "2 — средний": 2, "3 — серьёзный": 3}
-
+    levels = {"1 — мелкий": 1, "2 — средний": 2, "3 — серьёзный"}
     if message.text not in levels:
         await message.answer("Выбери кнопкой 👇")
         return
-
     data = await state.get_data()
-
-    today = datetime.now().strftime("%Y-%m-%d")  # ДАТА БЕЗ ВРЕМЕНИ
-
+    today = datetime.now().strftime("%Y-%m-%d")  # дата без времени
     cursor.execute(
         "INSERT INTO records (description, assistant, level, created_at) VALUES (?, ?, ?, ?)",
         (data["description"], data["assistant"], levels[message.text], today)
     )
     conn.commit()
-
     await state.clear()
     await message.answer("✅ Принято и сохранено.", reply_markup=ReplyKeyboardRemove())
 
 
-# ---------- EXPORT ----------
-
+# ---------------- EXPORT ----------------
 @dp.message(Command("export"))
 async def export_start(message: types.Message, state: FSMContext):
     await state.set_state(ExportForm.assistant)
@@ -133,7 +136,6 @@ async def export_choose_assistant(message: types.Message, state: FSMContext):
     if message.text not in ["Все", "Катерина", "Авелина"]:
         await message.answer("Выбери кнопкой 👇")
         return
-
     await state.update_data(assistant=message.text)
     await state.set_state(ExportForm.date_from)
     await message.answer("Введи дату ОТ (в формате ГГГГ-ММ-ДД):", reply_markup=ReplyKeyboardRemove())
@@ -155,13 +157,13 @@ async def export_date_to(message: types.Message, state: FSMContext):
 
     if assistant == "Все":
         cursor.execute("""
-            SELECT description, assistant, level, created_at 
+            SELECT id, description, assistant, level, created_at 
             FROM records 
             WHERE created_at BETWEEN ? AND ?
         """, (date_from, date_to))
     else:
         cursor.execute("""
-            SELECT description, assistant, level, created_at 
+            SELECT id, description, assistant, level, created_at 
             FROM records 
             WHERE created_at BETWEEN ? AND ?
             AND assistant = ?
@@ -176,21 +178,50 @@ async def export_date_to(message: types.Message, state: FSMContext):
 
     wb = Workbook()
     ws = wb.active
-    ws.append(["Дата", "Ассистент", "Уровень", "Описание"])
+    ws.append(["ID", "Дата", "Ассистент", "Уровень", "Описание"])  # добавляем колонку ID
 
     for r in rows:
-        ws.append([r[3], r[1], r[2], r[0]])
+        ws.append([r[0], r[4], r[2], r[3], r[1]])
 
     filename = "export.xlsx"
     wb.save(filename)
-
     await message.answer_document(types.FSInputFile(filename))
     await state.clear()
-
     import os
     os.remove(filename)
 
 
+# ---------------- DELETE ----------------
+@dp.message(Command("delete"))
+async def delete_start(message: types.Message, state: FSMContext):
+    await state.set_state(DeleteForm.choose_id)
+    await message.answer(
+        "Введи ID записи, которую хочешь удалить.\n\n"
+        "💡 Сначала используй /export, чтобы узнать ID."
+    )
+
+
+@dp.message(DeleteForm.choose_id)
+async def delete_confirm(message: types.Message, state: FSMContext):
+    try:
+        record_id = int(message.text)
+    except ValueError:
+        await message.answer("Введи **только число ID**")
+        return
+
+    cursor.execute("SELECT * FROM records WHERE id = ?", (record_id,))
+    row = cursor.fetchone()
+    if not row:
+        await message.answer("Запись с таким ID не найдена")
+        return
+
+    cursor.execute("DELETE FROM records WHERE id = ?", (record_id,))
+    conn.commit()
+    await state.clear()
+    await message.answer(f"✅ Запись с ID {record_id} удалена")
+
+
+# ---------------- MAIN ----------------
 async def main():
     await dp.start_polling(bot)
 
