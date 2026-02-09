@@ -49,7 +49,10 @@ class DeleteForm(StatesGroup):
 
 # ---------------- KEYBOARDS ----------------
 assistant_keyboard = ReplyKeyboardMarkup(
-    keyboard=[[KeyboardButton(text="Катерина"), KeyboardButton(text="Авелина")]],
+    keyboard=[
+        [KeyboardButton(text="Катерина"), KeyboardButton(text="Авелина")],
+        [KeyboardButton(text="Юлия"), KeyboardButton(text="Арина")]
+    ],
     resize_keyboard=True
 )
 
@@ -65,11 +68,11 @@ level_keyboard = ReplyKeyboardMarkup(
 export_assistant_keyboard = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="Все")],
-        [KeyboardButton(text="Катерина"), KeyboardButton(text="Авелина")]
+        [KeyboardButton(text="Катерина"), KeyboardButton(text="Авелина")],
+        [KeyboardButton(text="Юлия"), KeyboardButton(text="Арина")]
     ],
     resize_keyboard=True
 )
-
 
 # ---------------- /start и /help ----------------
 @dp.message(Command("start"))
@@ -99,7 +102,7 @@ async def get_description(message: types.Message, state: FSMContext):
 
 @dp.message(Form.assistant)
 async def get_assistant(message: types.Message, state: FSMContext):
-    if message.text not in ["Катерина", "Авелина"]:
+    if message.text not in ["Катерина", "Авелина", "Юлия", "Арина"]:
         await message.answer("Выбери кнопкой 👇")
         return
     await state.update_data(assistant=message.text)
@@ -109,7 +112,7 @@ async def get_assistant(message: types.Message, state: FSMContext):
 
 @dp.message(Form.level)
 async def get_level(message: types.Message, state: FSMContext):
-    levels = {"1 — мелкий": 1, "2 — средний": 2, "3 — серьёзный"}
+    levels = {"1 — мелкий": 1, "2 — средний": 2, "3 — серьёзный": 3}
     if message.text not in levels:
         await message.answer("Выбери кнопкой 👇")
         return
@@ -133,7 +136,7 @@ async def export_start(message: types.Message, state: FSMContext):
 
 @dp.message(ExportForm.assistant)
 async def export_choose_assistant(message: types.Message, state: FSMContext):
-    if message.text not in ["Все", "Катерина", "Авелина"]:
+    if message.text not in ["Все", "Катерина", "Авелина", "Юлия", "Арина"]:
         await message.answer("Выбери кнопкой 👇")
         return
     await state.update_data(assistant=message.text)
