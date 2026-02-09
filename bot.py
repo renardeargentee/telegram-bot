@@ -18,7 +18,15 @@ dp = Dispatcher(storage=MemoryStorage())
 
 conn = sqlite3.connect("data.db")
 cursor = conn.cursor()
-cursor.execute("CREATE TABLE IF NOT EXISTS records (id INTEGER PRIMARY KEY AUTOINCREMENT, description TEXT, assistant TEXT, level INTEGER, created_at TEXT)")
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    description TEXT,
+    assistant TEXT,
+    level INTEGER,
+    created_at TEXT
+)
+""")
 conn.commit()
 
 
@@ -153,5 +161,39 @@ async def export_date_to(message: types.Message, state: FSMContext):
         """, (date_from, date_to))
     else:
         cursor.execute("""
-            SELECT descr
+            SELECT description, assistant, level, created_at 
+            FROM records 
+            WHERE created_at BETWEEN ? AND ?
+            AND assistant = ?
+        """, (date_from, date_to, assistant))
 
+    rows = cursor.fetchall()
+
+    if not rows:
+        await state.clear()
+        await message.answer("Нет данных за этот период.")
+        return
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["Дата", "Ассистент", "Уровень", "Описание"])
+
+    for r in rows:
+        ws.append([r[3], r[1], r[2], r[0]])
+
+    filename = "export.xlsx"
+    wb.save(filename)
+
+    await message.answer_document(types.FSInputFile(filename))
+    await state.clear()
+
+    import os
+    os.remove(filename)
+
+
+async def main():
+    await dp.start_polling(bot)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
