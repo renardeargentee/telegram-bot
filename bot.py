@@ -88,6 +88,7 @@ async def help_command(message: types.Message):
         "/start — добавить запись\n"
         "/export — выгрузка в Excel\n"
         "/delete — удалить запись по ID\n"
+        "/backup — прислать файл базы данных\n"
         "💡 Сначала используй /export, чтобы узнать ID"
     )
 
@@ -190,7 +191,6 @@ async def export_date_to(message: types.Message, state: FSMContext):
     wb.save(filename)
     await message.answer_document(types.FSInputFile(filename))
     await state.clear()
-    import os
     os.remove(filename)
 
 
@@ -222,6 +222,17 @@ async def delete_confirm(message: types.Message, state: FSMContext):
     conn.commit()
     await state.clear()
     await message.answer(f"✅ Запись с ID {record_id} удалена")
+
+
+# ---------------- BACKUP ----------------
+@dp.message(Command("backup"))
+async def backup_db(message: types.Message):
+    db_file = "data.db"
+    if not os.path.exists(db_file):
+        await message.answer("❌ Файл базы данных не найден.")
+        return
+
+    await message.answer_document(types.FSInputFile(db_file))
 
 
 # ---------------- MAIN ----------------
