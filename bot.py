@@ -18,15 +18,7 @@ dp = Dispatcher(storage=MemoryStorage())
 
 conn = sqlite3.connect("data.db")
 cursor = conn.cursor()
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS records (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    description TEXT,
-    assistant TEXT,
-    level INTEGER,
-    created_at TEXT
-)
-""")
+cursor.execute("CREATE TABLE IF NOT EXISTS records (id INTEGER PRIMARY KEY AUTOINCREMENT, description TEXT, assistant TEXT, level INTEGER, created_at TEXT)")
 conn.commit()
 
 
@@ -162,3 +154,4 @@ async def export_date_to(message: types.Message, state: FSMContext):
     else:
         cursor.execute("""
             SELECT descr
+
